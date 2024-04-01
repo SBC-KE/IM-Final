@@ -1,60 +1,70 @@
 import streamlit as st
-import numpy as np
-from joblib import load 
-import streamlit.components.v1 as components
-# Title for your Streamlit app
-st.title('Default Map')
+import pandas as pd
+import joblib
+import folium
+from streamlit_folium import folium_static
+from sklearn.preprocessing import StandardScaler  # or import your scaler
 
-# Assuming your HTML file is located in the same directory as your Streamlit app
-# and named 'interactive_map.html'
-file_path = 'vaccination_map_updated.html'
-
-# Open the HTML file and read its contents
-with open(file_path, 'r', encoding='utf-8') as f:
-    html_string = f.read()
-
-# Use the components.html function to display the HTML content
-components.html(html_string, height=600)
-
-# Load the AdaBoost model
-model = load('gradient_boost_model_updated (1).joblib')
-
-# App title
-st.title('Vaccination Status Prediction App')
-
-import streamlit as st
-
-# Streamlit header for input collection
-st.header('Please enter the following details:')
-
-# Collecting user inputs for each vaccine
-number_of_polio_doses_received = st.number_input('Number of polio doses received', min_value=0, max_value=4)
-number_of_pentavalent_doses_received = st.number_input('Number of pentavalent doses received', min_value=0, max_value=5)
-number_of_pneumococcal_doses_received = st.number_input('Number of pneumococcal doses received', min_value=0, max_value=4)
-number_of_rotavirus_doses_received = st.number_input('Number of rotavirus doses received', min_value=0, max_value=3)
-number_of_measles_doses_received = st.number_input('Number of measles doses received', min_value=0, max_value=2)
-
-# Define the vaccination status based on the criteria given
-def determine_vaccination_status(doses_received, full_defaulter_threshold, partial_defaulter_threshold):
-    if doses_received <= full_defaulter_threshold:
-        return 'Full Defaulter'
-    elif doses_received <= partial_defaulter_threshold:
-        return 'Partial Defaulter'
+# Function to get color based on vaccination status
+def get_color(Vaccination_Status):
+    if Vaccination_Status == 'Full_Defaulter':
+        return 'red'
+    elif Vaccination_Status == 'Partial_Defaulter':
+        return 'orange'
     else:
-        return 'Up to Date'
+        return 'green'
 
-# Check each vaccination status
-polio_status = determine_vaccination_status(number_of_polio_doses_received, 0, 2)
-pentavalent_status = determine_vaccination_status(number_of_pentavalent_doses_received, 0, 2)
-pneumococcal_status = determine_vaccination_status(number_of_pneumococcal_doses_received, 0, 2)
-rotavirus_status = determine_vaccination_status(number_of_rotavirus_doses_received, 0, 1)
-measles_status = determine_vaccination_status(number_of_measles_doses_received, 0, 1)
+# Load your trained model (ensure the path is accessible from your app's deployment environment)
+model_path = 'random_forest_model_updated_2.0.joblib'
+model = joblib.load(model_path)
 
-# Display the vaccination status for each vaccine when the user clicks the 'Predict Vaccination Status' button
-if st.button('Predict Vaccination Status'):
-    st.subheader('Vaccination Status:')
-    st.write(f"Polio: {polio_status}")
-    st.write(f"Pentavalent: {pentavalent_status}")
-    st.write(f"Pneumococcal: {pneumococcal_status}")
-    st.write(f"Rotavirus: {rotavirus_status}")
-    st.write(f"Measles: {measles_status}")
+# Assuming the scaler is saved similarly
+scaler_path = 'X_validation_scaled.joblib'
+scaler = joblib.load(scaler_path)
+
+# Streamlit app title
+st.title('Vaccination Status Prediction')
+
+# Upload CSV file
+uploaded_file = st.file_uploader("Choose a file")
+if uploaded_file is not None:
+    # Assuming the uploaded file is a CSV, adjust for other formats
+    df2 = pd.read_csv(uploaded_file)
+
+# Select columns for prediction
+    defaulter_pred = df2[['number_of_polio_doses_received',
+                      'number_of_pentavalen_doses_received',
+                      'number_of_pneumococcal_doses_received',
+                      'number_of_rotavirus_dosers_received',
+                      'latitude', 'longitude',
+                      'number_of_measles_doses_received']]
+
+# Scale features using the scaler object
+    X_validation_scaled = defaulter_pred
+
+
+    # Make predictions
+    y_pred = model.predict(X_validation_scaled)
+
+    # Add predictions to the DataFrame
+    status_mapping = {0: 'Full_Defaulter', 1: 'Partial_Defaulter', 2: 'Non_Defaulter'}
+    df2['Predicted_Status'] = [status_mapping[pred] for pred in y_pred]
+
+    # Generate map
+    mean_lat = df2['latitude'].mean()
+    mean_long = df2['longitude'].mean()
+    vaccination_map = folium.Map(location=[mean_lat, mean_long], zoom_start=6)
+
+    for idx, row in df2.iterrows():
+        folium.CircleMarker(
+            location=[row['latitude'], row['longitude']],
+            radius=5,
+            color=get_color(row['Predicted_Status']),
+            fill=True,
+            fill_color=get_color(row['Predicted_Status']),
+            fill_opacity=0.7,
+            popup=row['Predicted_Status']
+        ).add_to(vaccination_map)
+
+    # Display map in Streamlit
+    folium_static(vaccination_map)
