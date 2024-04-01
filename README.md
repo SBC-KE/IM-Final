@@ -31,3 +31,6 @@ The system is tested to ensure its functionality and accuracy in predicting defa
 
 ## Conclusion
 The implementation and testing process for the Predictive Immunization Defaulting system demonstrate its capability to predict defaulting statuses based on demographic and vaccination history data. The system's accuracy and functionality in visualizing predictions on a geographical map provide valuable insights for public health decision-makers and stakeholders.
+## License
+This project is licensed under the [MIT License](LICENSE).
+
